@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 Patrizio Bekerle -- http://www.bekerle.com
+ * Copyright (c) 2014-2018 Patrizio Bekerle -- http://www.bekerle.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -91,6 +91,11 @@
 MainWindow::MainWindow(QWidget *parent) :
         QMainWindow(parent),
         ui(new Ui::MainWindow) {
+    // handle logging as signal/slot to even more prevent crashes when
+    // writing to the log-widget while the app is shutting down
+    connect(this, SIGNAL(log(LogWidget::LogType, QString)),
+            LogWidget::instance(), SLOT(log(LogWidget::LogType, QString)));
+
     // use our custom log handler
     qInstallMessageHandler(LogWidget::logMessageOutput);
     qApp->setProperty("loggingEnabled", true);
@@ -99,6 +104,10 @@ MainWindow::MainWindow(QWidget *parent) :
     // disable icons in the menu
     QApplication::instance()->setAttribute(Qt::AA_DontShowIconsInMenus, true);
 #endif
+
+    QSettings settings;
+    _noteEditIsCentralWidget = settings.value(
+            "noteEditIsCentralWidget", true).toBool();
 
     ui->setupUi(this);
     setWindowIcon(getSystemTrayIcon());
@@ -151,7 +160,6 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->encryptedNoteTextEdit->hide();
 
     // set the search frames for the note text edits
-    QSettings settings;
     bool darkMode = settings.value("darkMode").toBool();
     ui->noteTextEdit->initSearchFrame(ui->noteTextEditSearchFrame, darkMode);
     ui->encryptedNoteTextEdit->initSearchFrame(ui->noteTextEditSearchFrame,
@@ -613,14 +621,17 @@ void MainWindow::initDockWidgets() {
     splitDockWidget(_noteListDockWidget, _noteNavigationDockWidget,
                     Qt::Vertical);
 
-    _noteEditDockWidget = new QDockWidget(tr("Note edit"), this);
-    _noteEditDockWidget->setObjectName("noteEditDockWidget");
-    _noteEditDockWidget->setWidget(ui->noteEditFrame);
-    _noteEditDockTitleBarWidget = _noteEditDockWidget->titleBarWidget();
-    sizePolicy = _noteEditDockWidget->sizePolicy();
-    sizePolicy.setHorizontalStretch(5);
-    _noteEditDockWidget->setSizePolicy(sizePolicy);
-    addDockWidget(Qt::RightDockWidgetArea, _noteEditDockWidget, Qt::Horizontal);
+    if (!_noteEditIsCentralWidget) {
+        _noteEditDockWidget = new QDockWidget(tr("Note edit"), this);
+        _noteEditDockWidget->setObjectName("noteEditDockWidget");
+        _noteEditDockWidget->setWidget(ui->noteEditFrame);
+        _noteEditDockTitleBarWidget = _noteEditDockWidget->titleBarWidget();
+        sizePolicy = _noteEditDockWidget->sizePolicy();
+        sizePolicy.setHorizontalStretch(5);
+        _noteEditDockWidget->setSizePolicy(sizePolicy);
+        addDockWidget(Qt::RightDockWidgetArea, _noteEditDockWidget,
+                      Qt::Horizontal);
+    }
 
     _noteTagDockWidget = new QDockWidget(tr("Note tags"), this);
     _noteTagDockWidget->setObjectName("noteTagDockWidget");
@@ -629,7 +640,9 @@ void MainWindow::initDockWidgets() {
     sizePolicy = _noteTagDockWidget->sizePolicy();
     sizePolicy.setHorizontalStretch(5);
     _noteTagDockWidget->setSizePolicy(sizePolicy);
-    addDockWidget(Qt::RightDockWidgetArea, _noteTagDockWidget, Qt::Vertical);
+    addDockWidget(_noteEditIsCentralWidget ?
+                  Qt::LeftDockWidgetArea : Qt::RightDockWidgetArea,
+                  _noteTagDockWidget, Qt::Vertical);
 
     _notePreviewDockWidget = new QDockWidget(tr("Note preview"), this);
     _notePreviewDockWidget->setObjectName("notePreviewDockWidget");
@@ -679,7 +692,15 @@ void MainWindow::initDockWidgets() {
 //    ui->noteEditFrame->layout()->setContentsMargins(0, 0, 0, 0);
 
     setDockNestingEnabled(true);
-    setCentralWidget(Q_NULLPTR);
+    setCentralWidget(_noteEditIsCentralWidget ? ui->noteEditFrame : Q_NULLPTR);
+
+    // macOS and Windows will look better without this
+#ifdef Q_OS_LINUX
+    if (_noteEditIsCentralWidget) {
+        ui->noteTextEdit->setFrameShape(QFrame::StyledPanel);
+        ui->encryptedNoteTextEdit->setFrameShape(QFrame::StyledPanel);
+    }
+#endif
 
     // restore the current workspace
     restoreCurrentWorkspace();
@@ -1392,8 +1413,10 @@ void MainWindow::setDistractionFreeMode(bool enabled) {
                 toolbar->hide();
             }
 
-        // show the note edit dock widget
-        _noteEditDockWidget->show();
+        if (!_noteEditIsCentralWidget) {
+            // show the note edit dock widget
+            _noteEditDockWidget->show();
+        }
 
         // hide all dock widgets but the note edit dock widget
         QList<QDockWidget*> dockWidgets = findChildren<QDockWidget*>();
@@ -1464,7 +1487,7 @@ void MainWindow::showStatusBarMessage(const QString & message, int timeout) {
     }
 
     // write to the log widget
-    LogWidget::instance()->log(LogWidget::StatusLogType, message);
+    emit(log(LogWidget::StatusLogType, message));
 }
 
 /**
@@ -3278,6 +3301,8 @@ void MainWindow::closeEvent(QCloseEvent *event) {
         hide();
         event->ignore();
     } else {
+        storeUpdatedNotesToDisk();
+
         MetricsService::instance()->sendVisitIfEnabled("app/end", "app end");
         qApp->setProperty("loggingEnabled", false);
 
@@ -4684,7 +4709,7 @@ bool MainWindow::isMarkdownViewEnabled() {
  * Checks if the note edit pane is enabled
  */
 bool MainWindow::isNoteEditPaneEnabled() {
-    return _noteEditDockWidget->isVisible();
+    return _noteEditIsCentralWidget ? true : _noteEditDockWidget->isVisible();
 }
 
 /**
@@ -4973,12 +4998,7 @@ void MainWindow::on_action_New_note_triggered() {
         }
 
         if (!headline.isEmpty()) {
-            this->ui->searchLineEdit->setText(headline);
-
-            // create a new note or jump to the existing
-            jumpToNoteOrCreateNew();
-
-            return;
+            return createNewNote(headline, false);
         }
     }
 
@@ -4991,23 +5011,25 @@ void MainWindow::on_action_New_note_triggered() {
  *
  * @param noteName
  */
-void MainWindow::createNewNote(QString noteName) {
+void MainWindow::createNewNote(QString noteName, bool withNameAppend) {
     // show the window in case we are using the system tray
     show();
-
-    QDateTime currentDate = QDateTime::currentDateTime();
 
     if (noteName.isEmpty()) {
         noteName = "Note";
     }
 
-    // replacing ":" with "_" for Windows systems
-    QString text = noteName + " " + currentDate.toString(Qt::ISODate)
-                                     .replace(":", ".");
+    if (withNameAppend) {
+        QDateTime currentDate = QDateTime::currentDateTime();
 
-    this->ui->searchLineEdit->setText(text);
+        // replacing ":" with "_" for Windows systems
+        noteName = noteName + " " + currentDate.toString(Qt::ISODate)
+                .replace(":", ".");
+    }
 
-    // create a new note
+    this->ui->searchLineEdit->setText(noteName);
+
+    // create a new note or jump to the existing
     jumpToNoteOrCreateNew();
 }
 
@@ -5039,6 +5061,10 @@ void MainWindow::on_noteTextView_anchorClicked(const QUrl &url) {
  * - <note://my-note-with-spaces-in-the-name> opens the note "My Note with spaces in the name"
  */
 void MainWindow::openLocalUrl(QString urlString) {
+    if (urlString.isEmpty()) {
+        return;
+    }
+
     // if urlString is no valid url we will try to convert it into a note url
     if (!QOwnNotesMarkdownTextEdit::isValidUrl(urlString)) {
         urlString = Note::getNoteURLFromFileName(urlString);
@@ -5066,74 +5092,38 @@ void MainWindow::openLocalUrl(QString urlString) {
     QString scheme = url.scheme();
 
     if (scheme == "note") {
-        // if the name of the linked note only consists of numbers we cannot use
-        // host() to get the filename, it would get converted to an ip-address
-        QRegularExpressionMatch match =
-                QRegularExpression("^\\w+:\\/\\/(\\d+)$").match(urlString);
-        QString fileName = match.hasMatch() ? match.captured(1) : url.host();
+        // try to fetch a note from the url string
+        Note note = Note::fetchByUrlString(urlString);
 
-        // add a ".com" to the filename to simulate a valid domain
-        fileName += ".com";
+        // does this note really exist?
+        if (note.isFetched()) {
+            // set current note
+            setCurrentNote(note);
+        } else {
+            // if the name of the linked note only consists of numbers we cannot
+            // use host() to get the filename, it would get converted to an
+            // ip-address
+            QRegularExpressionMatch match =
+                    QRegularExpression(R"(^\w+:\/\/(\d+)$)").match(urlString);
+            QString fileName = match.hasMatch() ?
+                               match.captured(1) : url.host();
 
-        // convert the ACE to IDN (internationalized domain names) to support
-        // links to notes with unicode characters in their names
-        // then remove the ".com" again
-        fileName = Utils::Misc::removeIfEndsWith(
-                QUrl::fromAce(fileName.toLatin1()), ".com");
+            // try to generate a useful title for the note
+            fileName = Utils::Misc::toStartCase(fileName.replace("_", " "));
 
-        // if it seem we have unicode characters in our filename let us use
-        // wildcards for each number, because full width numbers get somehow
-        // translated to normal numbers by the QTextEdit
-        if (fileName != url.host()) {
-            fileName.replace("1", "[1１]")
-                    .replace("2", "[2２]")
-                    .replace("3", "[3３]")
-                    .replace("4", "[4４]")
-                    .replace("5", "[5５]")
-                    .replace("6", "[6６]")
-                    .replace("7", "[7７]")
-                    .replace("8", "[8８]")
-                    .replace("9", "[9９]")
-                    .replace("0", "[0０]");
-        }
-
-        // this makes it possible to search for file names containing spaces
-        // instead of spaces a "-" has to be used in the note link
-        // example: note://my-note-with-spaces-in-the-name
-        fileName.replace("-", "?").replace("_", "?");
-
-        // we need to search for the case sensitive filename,
-        // we only get it lowercase by QUrl
-        QDir currentDir = QDir(NoteSubFolder::activeNoteSubFolder().fullPath());
-
-        QStringList files;
-        QStringList fileSearchList =
-                QStringList() << fileName + ".txt" << fileName + ".md";
-
-        // append the files with custom extension
-        fileSearchList.append(
-                Note::customNoteFileExtensionList(fileName + "."));
-
-        // search for files with that name
-        files = currentDir.entryList(fileSearchList,
-                                     QDir::Files | QDir::NoSymLinks);
-
-        // did we find files?
-        if (files.length() > 0) {
-            // take the first found file
-            fileName = files.first();
-
-            // try to fetch note
-            Note note = Note::fetchByFileName(fileName);
-
-            // does this note really exist?
-            if (note.isFetched()) {
-                // set current note
-                setCurrentNote(note);
+            // ask if we want to create a new note if note wasn't found
+            if (Utils::Gui::question(
+                    this,
+                    tr("Note was not found"),
+                    tr("Note was not found, create new note "
+                               "<strong>%1</strong>?")
+                            .arg(fileName), "open-url-create-note") ==
+                    QMessageBox::Yes) {
+                return createNewNote(fileName, false);
             }
         }
     } else if (scheme == "task") {
-        openTodoDialog(url.host());
+        return openTodoDialog(url.host());
     }
 }
 
@@ -5363,13 +5353,36 @@ void MainWindow::on_actionSelect_all_notes_triggered() {
     selectAllNotes();
 }
 
+
 /**
- * @brief create the additional menu entries for the note text edit field
+ * Creates the additional menu entries for the note text edit field
+ *
  * @param pos
  */
 void MainWindow::on_noteTextEdit_customContextMenuRequested(const QPoint &pos) {
-    QPoint globalPos = ui->noteTextEdit->mapToGlobal(pos);
-    QMenu *menu = ui->noteTextEdit->createStandardContextMenu();
+    noteTextEditCustomContextMenuRequested(ui->noteTextEdit, pos);
+}
+
+/**
+ * Creates the additional menu entries for the encrypted note text edit field
+ *
+ * @param pos
+ */
+void MainWindow::on_encryptedNoteTextEdit_customContextMenuRequested(
+        const QPoint &pos) {
+    noteTextEditCustomContextMenuRequested(ui->encryptedNoteTextEdit, pos);
+}
+
+/**
+ * Creates the additional menu entries for a note text edit field
+ *
+ * @param noteTextEdit
+ * @param pos
+ */
+void MainWindow::noteTextEditCustomContextMenuRequested(
+        QOwnNotesMarkdownTextEdit *noteTextEdit, const QPoint &pos) {
+    QPoint globalPos = noteTextEdit->mapToGlobal(pos);
+    QMenu *menu = noteTextEdit->createStandardContextMenu();
     bool isAllowNoteEditing = allowNoteEditing();
     bool isTextSelected = isNoteTextSelected();
 
@@ -5417,19 +5430,21 @@ void MainWindow::on_noteTextEdit_customContextMenuRequested(const QPoint &pos) {
 
     menu->addSeparator();
 
-    QString linkTextActionName =
-            ui->noteTextEdit->textCursor().selectedText() != "" ?
+    QString linkTextActionName = isTextSelected ?
                 tr("&Link selected text") : tr("Insert &link");
     QAction *linkTextAction = menu->addAction(linkTextActionName);
     linkTextAction->setShortcut(ui->actionInsert_Link_to_note->shortcut());
     linkTextAction->setEnabled(isAllowNoteEditing);
 
-    QAction *searchAction = menu->addAction(tr("Search text on the web"));
+    QAction *searchAction = menu->addAction(
+            ui->actionSearch_text_on_the_web->text());
     searchAction->setShortcut(ui->actionSearch_text_on_the_web->shortcut());
+    searchAction->setEnabled(isTextSelected);
 
-    QAction *pasteMediaAction = menu->addAction(tr("Paste HTML or media"));
-    pasteMediaAction->setShortcut(ui->actionPaste_image->shortcut());
-    pasteMediaAction->setEnabled(isAllowNoteEditing);
+    // add some other existing menu entries
+    menu->addAction(ui->actionPaste_image);
+    menu->addAction(ui->actionAutocomplete);
+    menu->addAction(ui->actionSplit_note_at_cursor_position);
 
     // add the custom actions to the context menu
     if (!_noteTextEditContextMenuActions.isEmpty()) {
@@ -5445,9 +5460,6 @@ void MainWindow::on_noteTextEdit_customContextMenuRequested(const QPoint &pos) {
         if (selectedItem == linkTextAction) {
             // handle the linking of text with a note
             handleTextNoteLinking();
-        } else if (selectedItem == pasteMediaAction) {
-            // paste HTML or media into the note
-            pasteMediaIntoNote();
         } else if (selectedItem == searchAction) {
             // search for the selected text on the web
             on_actionSearch_text_on_the_web_triggered();
@@ -7929,7 +7941,7 @@ void MainWindow::onNavigationWidgetPositionClicked(int position) {
 }
 
 /**
- * Start a note preview regeneration to resize too large images
+ * Starts a note preview regeneration to resize too large images
  */
 void MainWindow::onNoteTextViewResize(QSize size, QSize oldSize) {
     Q_UNUSED(size);
@@ -7943,7 +7955,7 @@ void MainWindow::onNoteTextViewResize(QSize size, QSize oldSize) {
 }
 
 /**
- * Regenerate the note preview by converting the markdown to html again
+ * Regenerates the note preview by converting the markdown to html again
  */
 void MainWindow::regenerateNotePreview() {
     setNoteTextFromNote(&currentNote, true);
@@ -8808,23 +8820,43 @@ void MainWindow::on_actionShare_note_triggered() {
 }
 
 /**
- * Toggles the case of the selected text
+ * Toggles the case of the word under the Cursor or the selected text
  */
 void MainWindow::on_actionToggle_text_case_triggered() {
     QOwnNotesMarkdownTextEdit* textEdit = activeNoteTextEdit();
     QTextCursor c = textEdit->textCursor();
-    QString selectedText = c.selectedText();
+    // Save positions to restore everything at the end
+    int selectionStart = c.selectionStart();
+    int selectionEnd = c.selectionEnd();
+    int cPos = c.position();
 
+    QString selectedText = c.selectedText();
+    bool textWasSelected = ! selectedText.isEmpty();
+
+    // if no text is selected: automatically select the Word under the Cursor
     if (selectedText.isEmpty()) {
-        return;
+        c.select(QTextCursor::WordUnderCursor);
+        selectedText = c.selectedText();
     }
 
     // cycle text through lowercase, uppercase, start case, and sentence case
     c.insertText(Utils::Misc::cycleTextCase(selectedText));
 
-    // select the text again to maybe do an other operation on it
-    c.movePosition(
-            QTextCursor::Left, QTextCursor::KeepAnchor, selectedText.count());
+    if (textWasSelected) {
+        // select the text again to maybe do an other operation on it
+        // keep the original cursor position
+        if (cPos == selectionStart) {
+            c.setPosition(selectionEnd, QTextCursor::MoveAnchor);
+            c.setPosition(selectionStart, QTextCursor::KeepAnchor);
+        } else {
+            c.setPosition(selectionStart, QTextCursor::MoveAnchor);
+            c.setPosition(selectionEnd, QTextCursor::KeepAnchor);
+        }
+    } else {
+        // Just restore the Cursor Position if no text was selected
+        c.setPosition(cPos , QTextCursor::MoveAnchor);
+    }
+    // Restore the visible cursor
     textEdit->setTextCursor(c);
 }
 
@@ -9203,7 +9235,11 @@ void MainWindow::on_actionUnlock_panels_toggled(bool arg1) {
         _noteListDockWidget->setTitleBarWidget(_noteListDockTitleBarWidget);
         _noteNavigationDockWidget->setTitleBarWidget(
                 _noteNavigationDockTitleBarWidget);
-        _noteEditDockWidget->setTitleBarWidget(_noteEditDockTitleBarWidget);
+
+        if (!_noteEditIsCentralWidget) {
+            _noteEditDockWidget->setTitleBarWidget(_noteEditDockTitleBarWidget);
+        }
+
         _noteTagDockWidget->setTitleBarWidget(_noteTagDockTitleBarWidget);
         _notePreviewDockWidget->setTitleBarWidget(
                 _notePreviewDockTitleBarWidget);
@@ -9895,6 +9931,10 @@ void MainWindow::on_actionAllow_note_editing_triggered(bool checked) {
     setMenuEnabled(ui->menuFormat, checked);
     ui->actionPaste_image->setEnabled(checked);
     ui->actionReplace_in_current_note->setEnabled(checked);
+
+    ui->actionAllow_note_editing->setText(checked ?
+                                          tr("Disallow all note editing") :
+                                          tr("Allow all note editing"));
 }
 
 /**
@@ -9934,5 +9974,12 @@ void MainWindow::encryptedNoteTextEditResize(QResizeEvent* event) {
 void MainWindow::on_actionShow_local_trash_triggered() {
     LocalTrashDialog *dialog = new LocalTrashDialog(this);
     dialog->exec();
+}
 
+void MainWindow::on_actionJump_to_note_text_edit_triggered() {
+    if (!_noteEditIsCentralWidget) {
+        _noteEditDockWidget->show();
+    }
+
+    activeNoteTextEdit()->setFocus();
 }

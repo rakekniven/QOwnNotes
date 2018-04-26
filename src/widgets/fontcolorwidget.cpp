@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 Patrizio Bekerle -- http://www.bekerle.com
+ * Copyright (c) 2014-2018 Patrizio Bekerle -- http://www.bekerle.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -217,6 +217,7 @@ void FontColorWidget::initTextTreeWidgetItems() {
                           MarkdownHighlighter::MaskedSyntax);
     addTextTreeWidgetItem(tr("Current line background color"),
                           MarkdownHighlighter::CurrentLineBackgroundColor);
+    addTextTreeWidgetItem(tr("Broken link"), MarkdownHighlighter::BrokenLink);
 }
 
 void FontColorWidget::addTextTreeWidgetItem(QString text, int index) {
@@ -459,7 +460,7 @@ void FontColorWidget::on_copySchemeButton_clicked() {
     QString name = QInputDialog::getText(this, tr("Copy color schema"),
                           tr("Color schema name"), QLineEdit::Normal,
                           ui->colorSchemeComboBox->currentText() + " (" +
-                                  tr("Copy") + ")");
+                                  tr("Copy", "as noun") + ")");
 
     if (name.isEmpty()) {
         return;

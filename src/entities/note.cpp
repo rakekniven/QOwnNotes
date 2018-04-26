@@ -250,7 +250,36 @@ bool Note::copyToPath(QString destinationPath) {
             qDebug() << "New file name:" << destinationFileName;
         }
 
-        return file.copy(destinationFileName);
+        // copy the note file to the destination
+        bool isFileCopied = file.copy(destinationFileName);
+
+        if (isFileCopied) {
+            QStringList mediaFileList = getMediaFileList();
+
+            if (mediaFileList.count() > 0) {
+                QDir mediaDir(destinationPath + QDir::separator() + "media");
+
+                // created the media folder if it doesn't exist
+                if (!mediaDir.exists()) {
+                    mediaDir.mkpath(mediaDir.path());
+                }
+
+                if (mediaDir.exists()) {
+                    // copy all images to the media folder inside destinationPath
+                    Q_FOREACH(QString fileName, mediaFileList) {
+                            QFile mediaFile(NoteFolder::currentMediaPath() +
+                                            QDir::separator() + fileName);
+
+                            if (mediaFile.exists()) {
+                                mediaFile.copy(mediaDir.path() +
+                                               QDir::separator() + fileName);
+                            }
+                        }
+                }
+            }
+        }
+
+        return isFileCopied;
     }
 
     return false;
@@ -270,6 +299,29 @@ bool Note::moveToPath(QString destinationPath) {
     }
 
     return false;
+}
+
+/**
+ * Returns a list of all linked media file of the current note
+ * @return
+ */
+QStringList Note::getMediaFileList() {
+    QString text = getNoteText();
+    QStringList fileList;
+
+    // match image links like ![media-qV920](file://media/608766373.gif)
+    QRegularExpression re(
+            "!\\[.*?\\]\\(file:\\/\\/media/(.+?)\\)");
+    QRegularExpressionMatchIterator i = re.globalMatch(text);
+
+    // remove all found images from the orphaned files list
+    while (i.hasNext()) {
+        QRegularExpressionMatch match = i.next();
+        QString fileName = match.captured(1);
+        fileList << fileName;
+    }
+
+    return fileList;
 }
 
 /**
@@ -1645,14 +1697,10 @@ QString Note::textToMarkdownHtml(QString str, QString notesPath,
 
     // do some more code formatting
     codeStyleSheet += QString(
-            "pre, code { padding: 16px; overflow: auto;"
+            "code { padding: 16px; overflow: auto;"
                     " line-height: 1.45em; background-color: %1;"
                     " border-radius: 3px; color: %2; }").arg(
             codeBackgroundColor, codeForegroundColor);
-
-    // remove double code blocks
-    result.replace("<pre><code>", "<pre>")
-            .replace("</code></pre>", "</pre>");
 
     // correct the strikeout tag
     result.replace(QRegularExpression("<del>([^<]+)<\\/del>"), "<s>\\1</s>");
@@ -2263,7 +2311,8 @@ QString Note::createNoteHeader(QString name) {
  */
 QString Note::getInsertMediaMarkdown(QFile *file, bool addNewLine,
                                      bool returnUrlOnly) {
-    if (file->exists() && (file->size() > 0)) {
+    // file->exists() is false on Arch Linux for QTemporaryFile!
+    if (file->size() > 0) {
         QDir mediaDir(NoteFolder::currentMediaPath());
 
         // created the media folder if it doesn't exist
@@ -2426,6 +2475,86 @@ bool Note::scaleDownImageFileIfNeeded(QFile &file) {
     file.close();
 
     return true;
+}
+
+/**
+ * Trys to fetch a note from an url string
+ *
+ * @param urlString
+ * @return
+ */
+Note Note::fetchByUrlString(QString urlString) {
+    QUrl url = QUrl(urlString);
+
+    // if the name of the linked note only consists of numbers we cannot use
+    // host() to get the filename, it would get converted to an ip-address
+    QRegularExpressionMatch match =
+            QRegularExpression(R"(^\w+:\/\/(\d+)$)").match(urlString);
+    QString fileName = match.hasMatch() ? match.captured(1) : url.host();
+
+    if (fileName.isEmpty()) {
+        return Note();
+    }
+
+    // add a ".com" to the filename to simulate a valid domain
+    fileName += ".com";
+
+    // convert the ACE to IDN (internationalized domain names) to support
+    // links to notes with unicode characters in their names
+    // then remove the ".com" again
+    fileName = Utils::Misc::removeIfEndsWith(
+            QUrl::fromAce(fileName.toLatin1()), ".com");
+
+    // if it seem we have unicode characters in our filename let us use
+    // wildcards for each number, because full width numbers get somehow
+    // translated to normal numbers by the QTextEdit
+    if (fileName != url.host()) {
+        fileName.replace("1", "[1１]")
+                .replace("2", "[2２]")
+                .replace("3", "[3３]")
+                .replace("4", "[4４]")
+                .replace("5", "[5５]")
+                .replace("6", "[6６]")
+                .replace("7", "[7７]")
+                .replace("8", "[8８]")
+                .replace("9", "[9９]")
+                .replace("0", "[0０]");
+    }
+
+    // this makes it possible to search for file names containing spaces
+    // instead of spaces a "-" has to be used in the note link
+    // example: note://my-note-with-spaces-in-the-name
+    fileName.replace("-", "?").replace("_", "?");
+
+    // we need to search for the case sensitive filename,
+    // we only get it lowercase by QUrl
+    QDir currentDir = QDir(NoteSubFolder::activeNoteSubFolder().fullPath());
+
+    QStringList files;
+    QStringList fileSearchList =
+            QStringList() << fileName + ".txt" << fileName + ".md";
+
+    // append the files with custom extension
+    fileSearchList.append(
+            Note::customNoteFileExtensionList(fileName + "."));
+
+    // search for files with that name
+    files = currentDir.entryList(fileSearchList,
+                                 QDir::Files | QDir::NoSymLinks);
+    bool noteWasFound = false;
+
+    // did we find files?
+    if (files.length() > 0) {
+        // take the first found file
+        fileName = files.first();
+
+        // try to fetch note
+        Note note = Note::fetchByFileName(fileName);
+
+        return note;
+    }
+
+    return Note();
 }
 
 /**

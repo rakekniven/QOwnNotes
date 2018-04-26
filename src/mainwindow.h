@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 Patrizio Bekerle -- http://www.bekerle.com
+ * Copyright (c) 2014-2018 Patrizio Bekerle -- http://www.bekerle.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,6 +38,7 @@
 #include <dialogs/tododialog.h>
 #include <dialogs/settingsdialog.h>
 #include <QPrinter>
+#include <widgets/logwidget.h>
 #include "entities/notehistory.h"
 #include "dialogs/notediffdialog.h"
 #include "services/updateservice.h"
@@ -65,6 +66,7 @@ class MainWindow : public QMainWindow {
 
 Q_SIGNALS:
     void currentNoteChanged(Note &note);
+    void log(LogWidget::LogType logType, QString text);
 
 public:
     enum CreateNewNoteOption {
@@ -153,6 +155,8 @@ protected:
 
 public slots:
     void setCurrentNoteFromNoteId(int noteId);
+
+    void regenerateNotePreview();
 
 private slots:
 
@@ -344,8 +348,6 @@ private slots:
 
     void onNoteTextViewResize(QSize size, QSize oldSize);
 
-    void regenerateNotePreview();
-
     void on_actionAutocomplete_triggered();
 
     void restoreDistractionFreeMode();
@@ -506,6 +508,10 @@ private slots:
 
     void on_actionShow_local_trash_triggered();
 
+    void on_encryptedNoteTextEdit_customContextMenuRequested(const QPoint &pos);
+
+    void on_actionJump_to_note_text_edit_triggered();
+
 private:
     Ui::MainWindow *ui;
     QString notesPath;
@@ -588,6 +594,7 @@ private:
     QList<QAction *> _noteListContextMenuActions;
     QString _notePreviewHash;
     int _gitCommitInterval;
+    bool _noteEditIsCentralWidget;
 
     void createSystemTrayIcon();
 
@@ -774,7 +781,7 @@ private:
 
     void copySelectedNotesToNoteSubFolder(NoteSubFolder noteSubFolder);
 
-    void createNewNote(QString noteName = "");
+    void createNewNote(QString noteName = "", bool withNameAppend = true);
 
     bool selectedNotesHaveTags();
 
@@ -877,4 +884,7 @@ private:
     void applyFormatter(QString formatter);
 
     bool isNoteTextSelected();
+
+    void noteTextEditCustomContextMenuRequested(
+            QOwnNotesMarkdownTextEdit *noteTextEdit, const QPoint &pos);
 };

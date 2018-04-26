@@ -8,6 +8,8 @@
 #include <QtCore/QFile>
 #include <utils/misc.h>
 #include <QtWidgets/QMessageBox>
+#include <QScrollBar>
+#include <QtMath>
 #include <services/metricsservice.h>
 #include <libraries/versionnumber/versionnumber.h>
 #include <utils/gui.h>
@@ -28,8 +30,12 @@ ScriptRepositoryDialog::ScriptRepositoryDialog(QWidget *parent,
     _codeSearchUrl = "https://api.github.com/search/code";
     _rawContentUrlPrefix = Script::ScriptRepositoryRawContentUrlPrefix;
     _checkForUpdates = checkForUpdates;
+    _searchString.clear();
+    _page = 1;
+    _totalCount = 0;
 
     ui->downloadProgressBar->hide();
+    ui->loadMoreScriptsButton->hide();
     ui->searchScriptEdit->setFocus();
     ui->scriptTreeWidget->sortByColumn(0, Qt::AscendingOrder);
     enableOverview(true);
@@ -40,6 +46,10 @@ ScriptRepositoryDialog::ScriptRepositoryDialog(QWidget *parent,
         ui->overviewLabel->setText(tr("All scripts are up-to-date."));
         searchForUpdates();
     } else {
+        QObject::connect(ui->scriptTreeWidget->verticalScrollBar(),
+                         SIGNAL(valueChanged(int)),
+                         this, SLOT(scriptTreeWidgetSliderValueChanged(int)));
+
         searchScript();
     }
 }
@@ -47,6 +57,34 @@ ScriptRepositoryDialog::ScriptRepositoryDialog(QWidget *parent,
 ScriptRepositoryDialog::~ScriptRepositoryDialog() {
     storeSettings();
     delete ui;
+}
+
+/**
+ * Moves the note view scrollbar when the note edit scrollbar was moved
+ */
+void ScriptRepositoryDialog::scriptTreeWidgetSliderValueChanged(int value) {
+    if (ui->scriptTreeWidget->verticalScrollBar()->maximum() == value) {
+        loadMoreItems();
+    }
+}
+
+/**
+ * Attempts to load more items
+ */
+void ScriptRepositoryDialog::loadMoreItems() {
+    if (hasMoreItems()) {
+        searchScript(_page + 1);
+    }
+}
+
+/**
+ * Checks if there are more items to load
+ * 
+ * @return
+ */
+bool ScriptRepositoryDialog::hasMoreItems() const {
+    bool hasMoreItems = qCeil((qreal) _totalCount / _itemsPerPage) > _page;
+    return hasMoreItems;
 }
 
 /**
@@ -62,11 +100,16 @@ void ScriptRepositoryDialog::enableOverview(bool enable) {
 /**
  * Searches for script in the script repository
  */
-void ScriptRepositoryDialog::searchScript() {
-    QString query = QUrl::toPercentEncoding(ui->searchScriptEdit->text());
-    QUrl url(_codeSearchUrl +"?q=" + query +
-                     "+in:file+language:json+repo:qownnotes/scripts");
+void ScriptRepositoryDialog::searchScript(int page) {
+    if (page == 1) {
+        _searchString = ui->searchScriptEdit->text();
+    }
+
+    QString query = QUrl::toPercentEncoding(_searchString);
+    QUrl url(_codeSearchUrl +"?q=" + query + "+in:file+language:json"
+                     "+repo:qownnotes/scripts&page=" + QString::number(page));
     QNetworkRequest networkRequest(url);
+    _page = page;
 
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 6, 0))
     networkRequest.setAttribute(
@@ -104,10 +147,9 @@ void ScriptRepositoryDialog::searchForUpdates() {
 #endif
 
             // try to ensure the network is accessible
-            _networkManager->setNetworkAccessible(QNetworkAccessManager::Accessible);
-
+            _networkManager->setNetworkAccessible(
+                    QNetworkAccessManager::Accessible);
             _networkManager->get(networkRequest);
-
         }
 }
 
@@ -150,9 +192,15 @@ void ScriptRepositoryDialog::slotReplyFinished(QNetworkReply *reply) {
 void ScriptRepositoryDialog::parseCodeSearchReply(const QByteArray &arr) {
     QJsonDocument jsonResponse = QJsonDocument::fromJson(arr);
     QJsonObject jsonObject = jsonResponse.object();
+    _totalCount = jsonObject.value("total_count").toInt();
     QJsonArray items = jsonObject.value("items").toArray();
-    ui->scriptTreeWidget->clear();
-    enableOverview(true);
+    ui->loadMoreScriptsButton->setVisible(hasMoreItems());
+
+    if (_page == 1) {
+        ui->scriptTreeWidget->clear();
+    }
+
+    enableOverview(_page == 1);
 
     foreach(const QJsonValue &value, items) {
             QJsonObject obj = value.toObject();
@@ -221,11 +269,19 @@ void ScriptRepositoryDialog::parseInfoQMLReply(const QByteArray &arr) const {
         ui->selectFrame->show();
     }
 
+    QString jsonData = QString(arr);
+
+    // check if script item already exists in tree widget
+    if (Utils::Gui::userDataInTreeWidgetExists(
+            ui->scriptTreeWidget, jsonData)) {
+        return;
+    }
+
     QString name = infoJson.name;
 
     QTreeWidgetItem *item = new QTreeWidgetItem();
     item->setText(0, name);
-    item->setData(0, Qt::UserRole, QString(arr));
+    item->setData(0, Qt::UserRole, jsonData);
 
     if (!infoJson.platformSupported || !infoJson.appVersionSupported) {
         item->setTextColor(0, QColor("#aaaaaa"));
@@ -233,7 +289,11 @@ void ScriptRepositoryDialog::parseInfoQMLReply(const QByteArray &arr) const {
 
     ui->scriptTreeWidget->addTopLevelItem(item);
     ui->scriptTreeWidget->resizeColumnToContents(0);
-    ui->scriptTreeWidget->setCurrentItem(ui->scriptTreeWidget->topLevelItem(0));
+
+    if (_page == 1) {
+        ui->scriptTreeWidget->setCurrentItem(
+                ui->scriptTreeWidget->topLevelItem(0));
+    }
 }
 
 /**
@@ -479,4 +539,16 @@ void ScriptRepositoryDialog::on_installButton_clicked() {
         QMessageBox::warning(this, tr("Download failed"),
                                  tr("The script could not be downloaded!"));
     }
+}
+
+void ScriptRepositoryDialog::on_searchScriptEdit_textChanged(
+        const QString &arg1) {
+    // list all scripts again if the search bar was cleared
+    if (!_checkForUpdates && arg1.isEmpty()) {
+        searchScript();
+    }
+}
+
+void ScriptRepositoryDialog::on_loadMoreScriptsButton_clicked() {
+    loadMoreItems();
 }

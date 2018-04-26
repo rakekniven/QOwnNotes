@@ -32,4 +32,10 @@ languages/QOwnNotes_sv.qm usr/share/QOwnNotes/languages
 languages/QOwnNotes_id.qm usr/share/QOwnNotes/languages
 languages/QOwnNotes_bn.qm usr/share/QOwnNotes/languages
 languages/QOwnNotes_tr.qm usr/share/QOwnNotes/languages
+languages/QOwnNotes_tl.qm usr/share/QOwnNotes/languages
+languages/QOwnNotes_fil.qm usr/share/QOwnNotes/languages
+languages/QOwnNotes_ceb.qm usr/share/QOwnNotes/languages
+languages/QOwnNotes_hi.qm usr/share/QOwnNotes/languages
+languages/QOwnNotes_hil.qm usr/share/QOwnNotes/languages
+languages/QOwnNotes_ur.qm usr/share/QOwnNotes/languages
 QOwnNotes usr/bin

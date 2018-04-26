@@ -2,6 +2,7 @@
 #define QOWNNOTESMARKDOWNTEXTEDIT_H
 
 #include <QObject>
+#include <helpers/qownnotesmarkdownhighlighter.h>
 #include "libraries/qmarkdowntextedit/qmarkdowntextedit.h"
 #include "mainwindow.h"
 
@@ -36,6 +37,8 @@ public:
     QMargins viewportMargins();
 
 protected:
+    // we must not override _highlighter or Windows will create a QOwnNotesMarkdownHighlighter and MarkdownHighlighter instance
+//    QOwnNotesMarkdownHighlighter *_highlighter;
     void insertFromMimeData(const QMimeData * source);
     void resizeEvent(QResizeEvent* event);
 

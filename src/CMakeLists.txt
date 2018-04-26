@@ -141,6 +141,8 @@ set(SOURCE_FILES
     helpers/clientproxy.h
     helpers/toolbarcontainer.cpp
     helpers/toolbarcontainer.h
+    helpers/qownnotesmarkdownhighlighter.cpp
+    helpers/qownnotesmarkdownhighlighter.h
     api/noteapi.cpp
     api/noteapi.h
     api/tagapi.cpp
@@ -273,6 +275,12 @@ SET(QON_TS_FILES
     languages/QOwnNotes_id.ts
     languages/QOwnNotes_bn.ts
     languages/QOwnNotes_tr.ts
+    languages/QOwnNotes_tl.ts
+    languages/QOwnNotes_fil.ts
+    languages/QOwnNotes_ceb.ts
+    languages/QOwnNotes_hi.ts
+    languages/QOwnNotes_hil.ts
+    languages/QOwnNotes_ur.ts
 )
 
 qt5_add_translation(QON_QM_FILES ${QON_TS_FILES})

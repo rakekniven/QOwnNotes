@@ -38,7 +38,13 @@ TRANSLATIONS = languages/QOwnNotes_en.ts \
     languages/QOwnNotes_sv.ts \
     languages/QOwnNotes_id.ts \
     languages/QOwnNotes_bn.ts \
-    languages/QOwnNotes_tr.ts
+    languages/QOwnNotes_tr.ts \
+    languages/QOwnNotes_tl.ts \
+    languages/QOwnNotes_fil.ts \
+    languages/QOwnNotes_ceb.ts \
+    languages/QOwnNotes_hi.ts \
+    languages/QOwnNotes_hil.ts \
+    languages/QOwnNotes_ur.ts
 
 CODECFORTR = UTF-8
 CONFIG += c++11
@@ -82,6 +88,7 @@ SOURCES += main.cpp\
     helpers/htmlentities.cpp \
     helpers/clientproxy.cpp \
     helpers/toolbarcontainer.cpp \
+    helpers/qownnotesmarkdownhighlighter.cpp \
     services/databaseservice.cpp \
     widgets/qownnotesmarkdowntextedit.cpp \
     dialogs/passworddialog.cpp \
@@ -155,6 +162,7 @@ HEADERS  += mainwindow.h \
     helpers/htmlentities.h \
     helpers/clientproxy.h \
     helpers/toolbarcontainer.h \
+    helpers/qownnotesmarkdownhighlighter.h \
     services/databaseservice.h \
     release.h \
     widgets/qownnotesmarkdowntextedit.h \

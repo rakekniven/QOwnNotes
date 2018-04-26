@@ -35,6 +35,7 @@ Important Shortcuts
 - <kbd>Ctrl</kbd> + <kbd>⇧</kbd> + <kbd>A</kbd> lets you search for actions
 - <kbd>Ctrl</kbd> + <kbd>S</kbd> manually saves modified notes
 - <kbd>Alt</kbd> + <kbd>⇧</kbd> + <kbd>I</kbd> opens the Script repository dialog
+- <kbd>F4</kbd> jumps to the note edit panel
 
 ### In the note search bar
 
@@ -87,6 +88,8 @@ Important Shortcuts
 - <kbd>Ctrl</kbd> + <kbd>⇧</kbd> + <kbd>H</kbd> inserts a headline from the note filename at the top of the note
 - <kbd>Alt</kbd> + <kbd>⇧</kbd> + <kbd>X</kbd> splits the current note into two notes at the current cursor position
 - <kbd>Alt</kbd> + <kbd>⇧</kbd> + <kbd>W</kbd> searches for the selected text on the web
+- <kbd>Ctrl</kbd> + <kbd>Up</kbd> scrolls the content up
+- <kbd>Ctrl</kbd> + <kbd>Down</kbd> scrolls the content down
 
 ### In the note preview panel
 
@@ -136,6 +139,7 @@ Important Shortcuts
 - <kbd>⌘</kbd> + <kbd>⇧</kbd> + <kbd>A</kbd> lets you search for actions
 - <kbd>⌘</kbd> + <kbd>S</kbd> manually saves modified notes
 - <kbd>Opt</kbd> + <kbd>⇧</kbd> + <kbd>I</kbd> opens the Script repository dialog
+- <kbd>F4</kbd> jumps to the note edit panel
 
 ### In the note search bar
 
@@ -188,6 +192,8 @@ Important Shortcuts
 - <kbd>⌘</kbd> + <kbd>⇧</kbd> + <kbd>H</kbd> inserts a headline from the note filename at the top of the note
 - <kbd>Opt</kbd> + <kbd>⇧</kbd> + <kbd>X</kbd> splits the current note into two notes at the current cursor position
 - <kbd>Opt</kbd> + <kbd>⇧</kbd> + <kbd>W</kbd> searches for the selected text on the web
+- <kbd>⌘</kbd> + <kbd>Up</kbd> scrolls the content up
+- <kbd>⌘</kbd> + <kbd>Down</kbd> scrolls the content down
 
 ### In the note preview panel
 

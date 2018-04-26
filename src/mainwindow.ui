@@ -447,7 +447,7 @@
             <bool>true</bool>
            </property>
            <property name="contextMenuPolicy">
-            <enum>Qt::DefaultContextMenu</enum>
+            <enum>Qt::CustomContextMenu</enum>
            </property>
            <property name="styleSheet">
             <string notr="true">QPlainTextEdit {
@@ -772,6 +772,7 @@ p, li { white-space: pre-wrap; }
     <addaction name="menuNavigation"/>
     <addaction name="menuTrash"/>
     <addaction name="menuSort_by"/>
+    <addaction name="actionAllow_note_editing"/>
     <addaction name="separator"/>
     <addaction name="menuExport"/>
     <addaction name="menuImport"/>
@@ -902,7 +903,6 @@ p, li { white-space: pre-wrap; }
      <addaction name="actionDecrypt_note"/>
     </widget>
     <addaction name="menuEditNote"/>
-    <addaction name="actionAllow_note_editing"/>
     <addaction name="action_Remove_note"/>
     <addaction name="separator"/>
     <addaction name="action_Find_text_in_note"/>
@@ -978,6 +978,7 @@ p, li { white-space: pre-wrap; }
      <addaction name="actionSwitch_to_previous_workspace"/>
     </widget>
     <addaction name="menuShow"/>
+    <addaction name="actionJump_to_note_text_edit"/>
     <addaction name="menuToolbars"/>
     <addaction name="menuPanels"/>
     <addaction name="menuWorkspaces"/>
@@ -2044,7 +2045,10 @@ p, li { white-space: pre-wrap; }
   </action>
   <action name="actionSearch_text_on_the_web">
    <property name="text">
-    <string>Search text on the web</string>
+    <string>Search selected text on the web</string>
+   </property>
+   <property name="toolTip">
+    <string>Search selected text on the web</string>
    </property>
    <property name="shortcut">
     <string notr="true">Alt+Shift+W</string>
@@ -2157,7 +2161,7 @@ p, li { white-space: pre-wrap; }
      <normaloff>:/icons/breeze-qownnotes/16x16/document-save.svg</normaloff>:/icons/breeze-qownnotes/16x16/document-save.svg</iconset>
    </property>
    <property name="text">
-    <string>Allow note editing</string>
+    <string>Allow all note editing</string>
    </property>
    <property name="shortcut">
     <string notr="true">Alt+Shift+E</string>
@@ -2179,6 +2183,17 @@ p, li { white-space: pre-wrap; }
    </property>
    <property name="text">
     <string>Show local trash</string>
+   </property>
+  </action>
+  <action name="actionJump_to_note_text_edit">
+   <property name="text">
+    <string>Jump to note edit panel</string>
+   </property>
+   <property name="toolTip">
+    <string>Jump to note edit panel</string>
+   </property>
+   <property name="shortcut">
+    <string notr="true">F4</string>
    </property>
   </action>
  </widget>
@@ -2206,9 +2221,9 @@ p, li { white-space: pre-wrap; }
   </customwidget>
  </customwidgets>
  <resources>
-  <include location="images.qrc"/>
-  <include location="breeze-qownnotes.qrc"/>
   <include location="breeze-dark-qownnotes.qrc"/>
+  <include location="breeze-qownnotes.qrc"/>
+  <include location="images.qrc"/>
  </resources>
  <connections/>
 </ui>

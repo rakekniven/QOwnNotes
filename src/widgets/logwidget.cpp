@@ -3,6 +3,7 @@
 #include <QScrollBar>
 #include <QMenu>
 #include <QFile>
+#include <QKeyEvent>
 #include <QDebug>
 #include <utils/misc.h>
 #include "logwidget.h"
@@ -62,6 +63,9 @@ LogWidget::LogWidget(QWidget *parent) :
     connect(ui->statusCheckBox, SIGNAL(clicked()), this, SLOT(storeSettings()));
     connect(ui->scriptingCheckBox, SIGNAL(clicked()),
             this, SLOT(storeSettings()));
+
+    ui->logTextEdit->installEventFilter(this);
+    ui->buttonFrame->installEventFilter(this);
 #endif
 }
 
@@ -98,7 +102,13 @@ void LogWidget::storeSettings() const {
 /**
  * Adds a log entry
  */
-void LogWidget::log(LogType logType, QString text) {
+void LogWidget::log(LogWidget::LogType logType, QString text) {
+    // ignore libpng sRGB profile warnings
+    if (logType == WarningLogType && text.contains(
+            "libpng warning: iCCP: known incorrect sRGB profile")) {
+        return;
+    }
+
 #ifndef INTEGRATION_TESTS
     // log to the log file
     logToFileIfAllowed(logType, text);
@@ -326,7 +336,15 @@ void LogWidget::logMessageOutput(
             logType = LogType::FatalLogType;
     }
 
-    LogWidget::instance()->log(logType, msg);
+#ifndef INTEGRATION_TESTS
+    MainWindow *mainWindow = MainWindow::instance();
+
+    if (mainWindow != Q_NULLPTR) {
+        // handle logging as signal/slot to even more prevent crashes when
+        // writing to the log-widget while the app is shutting down
+        emit(mainWindow->log(logType, msg));
+    }
+#endif
 
     // it's harder to debug a problem if we abort here
 //    if (type == QtFatalMsg) {
@@ -409,4 +427,27 @@ void LogWidget::onDestroyed(QObject *obj) {
 #ifndef INTEGRATION_TESTS
     qApp->setProperty("loggingEnabled", false);
 #endif
+}
+
+/**
+ * Event filters
+ *
+ * @param obj
+ * @param event
+ * @return
+ */
+bool LogWidget::eventFilter(QObject *obj, QEvent *event) {
+    if (event->type() == QEvent::KeyPress) {
+        QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+
+        // hide the option frame on Escape key
+        if (keyEvent->key() == Qt::Key_Escape) {
+#ifndef INTEGRATION_TESTS
+            ui->buttonFrame->hide();
+#endif
+            return false;
+        }
+    }
+
+    return QFrame::eventFilter(obj, event);
 }

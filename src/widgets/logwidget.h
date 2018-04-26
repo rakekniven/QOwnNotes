@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 Patrizio Bekerle -- http://www.bekerle.com
+ * Copyright (c) 2014-2018 Patrizio Bekerle -- http://www.bekerle.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,6 +15,7 @@
 #pragma once
 
 #include <QFrame>
+#include <QEvent>
 
 namespace Ui {
 class LogWidget;
@@ -39,11 +40,14 @@ public:
     ~LogWidget();
     static LogWidget *instance();
     static LogWidget *createInstance(QWidget *parent);
-    void log(LogType logType, QString text);
     static void logMessageOutput(
             QtMsgType type,
             const QMessageLogContext &context,
             const QString &msg);
+    bool eventFilter(QObject *obj, QEvent *event);
+
+public slots:
+    void log(LogWidget::LogType logType, QString text);
 
 private slots:
     void storeSettings() const;

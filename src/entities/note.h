@@ -233,6 +233,10 @@ public:
                                int maxImageWidth = 980, bool forExport = false,
                                bool base64Images = false);
 
+    QStringList getMediaFileList();
+
+    static Note fetchByUrlString(QString urlString);
+
 protected:
     int id;
     QString name;

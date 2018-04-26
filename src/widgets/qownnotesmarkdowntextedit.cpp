@@ -8,7 +8,8 @@
 #include "qownnotesmarkdowntextedit.h"
 
 QOwnNotesMarkdownTextEdit::QOwnNotesMarkdownTextEdit(QWidget *parent)
-        : QMarkdownTextEdit(parent) {
+        : QMarkdownTextEdit(parent, false) {
+    _highlighter = new QOwnNotesMarkdownHighlighter(document());
     setStyles();
     updateSettings();
 
@@ -76,6 +77,7 @@ void QOwnNotesMarkdownTextEdit::setStyles() {
     setFormatStyle(MarkdownHighlighter::HighlighterState::InlineCodeBlock);
     setFormatStyle(MarkdownHighlighter::HighlighterState::Link);
     setFormatStyle(MarkdownHighlighter::HighlighterState::Table);
+    setFormatStyle(MarkdownHighlighter::HighlighterState::BrokenLink);
 
 #ifdef Q_OS_WIN32
     QSettings settings;
@@ -131,7 +133,9 @@ int QOwnNotesMarkdownTextEdit::modifyFontSize(FontModificationMode mode) {
                 }
         }
 
-        font.setPointSize(fontSize);
+        if (fontSize > 0) {
+            font.setPointSize(fontSize);
+        }
 
         // store the font settings
         settings.setValue("MainWindow/noteTextEdit.font", font.toString());
@@ -167,7 +171,9 @@ int QOwnNotesMarkdownTextEdit::modifyFontSize(FontModificationMode mode) {
                 }
         }
 
-        font.setPointSize(codeFontSize);
+        if (codeFontSize > 0) {
+            font.setPointSize(codeFontSize);
+        }
 
         // store the font settings
         settings.setValue("MainWindow/noteTextEdit.code.font", font.toString());

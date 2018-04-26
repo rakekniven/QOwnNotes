@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 Patrizio Bekerle -- http://www.bekerle.com
+ * Copyright (c) 2014-2018 Patrizio Bekerle -- http://www.bekerle.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -90,6 +90,24 @@ void Utils::Gui::searchForTextInTreeWidget(QTreeWidget *treeWidget,
                 item->setHidden(false);
             }
     }
+}
+
+/**
+ * Checks if a variant exists as user data in a tree widget
+ */
+bool Utils::Gui::userDataInTreeWidgetExists(QTreeWidget *treeWidget,
+                                            QVariant variant, int column) {
+    // get all items
+    QList<QTreeWidgetItem*> allItems = treeWidget->
+            findItems("", Qt::MatchContains | Qt::MatchRecursive);
+
+    Q_FOREACH(QTreeWidgetItem *item, allItems) {
+            if (variant == item->data(column, Qt::UserRole)) {
+                return true;
+            }
+        }
+
+    return false;
 }
 
 /**

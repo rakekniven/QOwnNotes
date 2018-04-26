@@ -50,6 +50,8 @@ public:
     Q_INVOKABLE QString downloadUrlToString(QUrl url);
     Q_INVOKABLE QString downloadUrlToMedia(QUrl url,
                                            bool returnUrlOnly = false);
+    Q_INVOKABLE QString insertMediaFile(QString mediaFilePath,
+                                        bool returnUrlOnly = false);
     Q_INVOKABLE void registerCustomAction(
             QString identifier, QString menuText, QString buttonText = "",
             QString icon = "", bool useInNoteEditContextMenu = false,
@@ -70,6 +72,7 @@ public:
     Q_INVOKABLE void reloadScriptingEngine();
     Q_INVOKABLE NoteApi* fetchNoteByFileName(QString fileName,
                                              int noteSubFolderId = -1);
+    Q_INVOKABLE NoteApi* fetchNoteById(int id);
     Q_INVOKABLE bool noteExistsByFileName(QString fileName,
                                           int ignoreNoteId = 0,
                                           int noteSubFolderId = -1);
@@ -85,6 +88,9 @@ public:
             int defaultButton = QMessageBox::NoButton);
 
     Q_INVOKABLE QString getOpenFileName(QString caption = "", QString dir = "",
+                                        QString filter = "");
+
+    Q_INVOKABLE QString getSaveFileName(QString caption = "", QString dir = "",
                                         QString filter = "");
 
     Q_INVOKABLE void registerLabel(QString identifier, QString text = "");
@@ -134,6 +140,12 @@ public:
     QStringList callAutocompletionHook();
 
     Q_INVOKABLE QStringList searchTagsByName(QString name);
+
+    Q_INVOKABLE void regenerateNotePreview();
+
+    Q_INVOKABLE QList<int> selectedNotesIds();
+
+    Q_INVOKABLE bool writeToFile(const QString &filePath, const QString &data);
 
 private:
     QQmlEngine *_engine;
